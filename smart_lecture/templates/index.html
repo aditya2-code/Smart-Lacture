@@ -1,0 +1,878 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Smart-Lecture v3 · Kalman + LK Flow Engine</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:ital,wght@0,300;0,400;1,300&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#07090d;--surface:#0d1117;--surface2:#131920;
+  --border:rgba(255,255,255,0.07);--border2:rgba(255,255,255,0.13);
+  --accent:#00e5a0;--purple:#7b61ff;--orange:#ff6b35;
+  --danger:#ff4d6d;--warn:#ffbe0b;--blue:#4fc3f7;
+  --text:#e2e8f0;--muted:#4a5a6a;--r:10px;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;overflow:hidden;}
+body{font-family:'Syne',sans-serif;background:var(--bg);color:var(--text);display:flex;flex-direction:column;}
+
+/* TOPBAR */
+.topbar{height:50px;flex-shrink:0;background:var(--surface);border-bottom:1px solid var(--border);
+  display:flex;align-items:center;padding:0 18px;gap:12px;z-index:20;}
+.brand{font-size:16px;font-weight:800;display:flex;align-items:center;gap:4px;white-space:nowrap;}
+.brand-v{font-size:9px;color:var(--muted);font-family:'DM Mono',monospace;margin-left:3px;
+  background:rgba(0,229,160,.1);border:1px solid rgba(0,229,160,.2);padding:2px 6px;border-radius:4px;}
+.topbar-sep{flex:1;}
+.status-pill{font-family:'DM Mono',monospace;font-size:10px;letter-spacing:.08em;
+  padding:4px 11px;border-radius:20px;
+  background:rgba(0,229,160,.07);border:1px solid rgba(0,229,160,.2);
+  color:var(--accent);display:flex;align-items:center;gap:5px;transition:all .4s;}
+.status-pill.warn{background:rgba(255,190,11,.07);border-color:rgba(255,190,11,.25);color:var(--warn);}
+.status-pill.alert{background:rgba(255,77,109,.08);border-color:rgba(255,77,109,.25);color:var(--danger);}
+.pulse{width:6px;height:6px;border-radius:50%;background:currentColor;animation:blink 1.5s infinite;}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.25}}
+.btn-sm{font-family:'DM Mono',monospace;font-size:11px;padding:6px 13px;border-radius:6px;
+  border:1px solid var(--border);background:transparent;color:var(--text);cursor:pointer;transition:all .2s;}
+.btn-sm:hover{background:rgba(255,255,255,.05);border-color:rgba(255,255,255,.18);}
+.btn-accent{background:var(--accent)!important;color:#000!important;border-color:var(--accent)!important;font-weight:700;}
+.btn-accent:hover{opacity:.88;box-shadow:0 3px 14px rgba(0,229,160,.3);}
+
+/* LAYOUT */
+.main{flex:1;display:grid;grid-template-columns:1fr 300px;overflow:hidden;min-height:0;}
+
+/* VIDEO AREA */
+.video-area{display:flex;flex-direction:column;background:#000;position:relative;}
+.video-container{flex:1;position:relative;overflow:hidden;min-height:0;}
+#videoEl{width:100%;height:100%;object-fit:contain;display:block;background:#000;}
+
+.upload-zone{position:absolute;inset:0;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;gap:12px;
+  background:linear-gradient(140deg,#07101a,#0a1825);cursor:pointer;transition:background .2s;}
+.upload-zone:hover{background:linear-gradient(140deg,#0c1824,#0f2030);}
+.upload-zone input{display:none;}
+.upload-icon{font-size:44px;opacity:.35;}
+.upload-title{font-size:19px;font-weight:700;}
+.upload-sub{font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);}
+
+/* Overlays */
+.ov{position:absolute;inset:14px;border-radius:var(--r);display:flex;flex-direction:column;
+  align-items:center;justify-content:center;gap:12px;padding:22px 20px;text-align:center;
+  opacity:0;pointer-events:none;transition:opacity .3s;backdrop-filter:blur(10px);}
+.ov.show{opacity:1;pointer-events:all;}
+.ov-confused{background:rgba(8,5,25,.84);border:1px solid rgba(123,97,255,.45);}
+.ov-bored{background:rgba(18,5,0,.84);border:1px solid rgba(255,107,53,.45);}
+.ov-calibrate{background:rgba(2,12,8,.9);border:1px solid rgba(0,229,160,.35);}
+.ov-icon{font-size:36px;}
+.ov-title{font-size:20px;font-weight:800;}
+.ov-sub{font-family:'DM Mono',monospace;font-size:11px;color:rgba(255,255,255,.5);max-width:380px;line-height:1.7;}
+
+.summary-box{background:rgba(0,0,0,.55);border:1px solid rgba(255,255,255,.1);border-radius:8px;
+  padding:13px 16px;font-family:'DM Mono',monospace;font-size:11px;line-height:1.75;
+  max-width:440px;width:100%;text-align:left;}
+.summary-topic{color:#fff;font-size:12px;font-weight:700;margin-bottom:6px;display:flex;align-items:center;gap:6px;}
+.summary-text{color:var(--accent);}
+.concept-pills{display:flex;flex-wrap:wrap;gap:5px;margin-top:8px;}
+.concept-pill{font-size:9px;padding:3px 9px;border-radius:20px;
+  background:rgba(0,229,160,.08);border:1px solid rgba(0,229,160,.2);color:var(--accent);letter-spacing:.05em;}
+
+.ov-btn{font-family:'DM Mono',monospace;font-size:12px;font-weight:700;
+  padding:10px 24px;border-radius:7px;border:none;cursor:pointer;transition:all .2s;}
+.ov-btn-g{background:var(--accent);color:#000;}
+.ov-btn-g:hover{box-shadow:0 4px 18px rgba(0,229,160,.35);}
+.ov-btn-gh{background:transparent;color:var(--text);border:1px solid var(--border2);}
+.ov-btn-gh:hover{background:rgba(255,255,255,.06);}
+.ov-row{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;}
+
+.quiz-card{background:rgba(0,0,0,.55);border:1px solid rgba(255,107,53,.3);
+  border-radius:9px;padding:14px 18px;max-width:380px;width:100%;}
+.quiz-q{font-size:13px;font-weight:700;margin-bottom:10px;}
+.quiz-opts{display:flex;flex-direction:column;gap:7px;}
+.quiz-opt{font-family:'DM Mono',monospace;font-size:11px;text-align:left;
+  padding:8px 13px;border-radius:6px;background:rgba(255,255,255,.04);
+  border:1px solid rgba(255,255,255,.09);color:var(--text);cursor:pointer;transition:all .15s;}
+.quiz-opt:hover:not(.locked){background:rgba(255,107,53,.14);border-color:rgba(255,107,53,.4);}
+.quiz-opt.correct{background:rgba(0,229,160,.14);border-color:var(--accent);color:var(--accent);}
+.quiz-opt.wrong{background:rgba(255,77,109,.14);border-color:var(--danger);color:var(--danger);}
+.quiz-opt.locked{cursor:default;}
+
+/* Calibration */
+.cal-wrap{width:230px;}
+.cal-label{font-family:'DM Mono',monospace;font-size:10px;color:var(--muted);
+  display:flex;justify-content:space-between;margin-bottom:6px;}
+.cal-track{height:4px;background:rgba(255,255,255,.08);border-radius:2px;overflow:hidden;margin-bottom:12px;}
+.cal-fill{height:100%;background:var(--accent);border-radius:2px;transition:width .15s;}
+.cal-metrics{display:grid;grid-template-columns:1fr 1fr 1fr;gap:7px;width:230px;}
+.cal-metric{background:rgba(0,229,160,.06);border:1px solid rgba(0,229,160,.15);
+  border-radius:7px;padding:7px 9px;text-align:center;}
+.cal-metric-val{font-size:16px;font-weight:800;color:var(--accent);font-family:'DM Mono',monospace;}
+.cal-metric-name{font-family:'DM Mono',monospace;font-size:8px;color:var(--muted);
+  margin-top:2px;letter-spacing:.06em;text-transform:uppercase;}
+
+/* VIDEO CONTROLS */
+.controls{height:50px;flex-shrink:0;background:rgba(0,0,0,.92);
+  border-top:1px solid rgba(255,255,255,.04);
+  display:flex;align-items:center;padding:0 14px;gap:10px;}
+.ctrl-btn{width:32px;height:32px;border-radius:50%;background:rgba(255,255,255,.07);
+  border:none;color:#fff;font-size:13px;cursor:pointer;display:flex;align-items:center;
+  justify-content:center;transition:background .2s;flex-shrink:0;}
+.ctrl-btn:hover{background:rgba(255,255,255,.16);}
+.prog-track{flex:1;height:4px;background:rgba(255,255,255,.1);border-radius:2px;cursor:pointer;position:relative;}
+.prog-fill{height:100%;background:var(--accent);border-radius:2px;pointer-events:none;transition:width .12s;}
+.prog-thumb{position:absolute;top:50%;width:11px;height:11px;background:#fff;border-radius:50%;
+  transform:translate(-50%,-50%);pointer-events:none;transition:left .12s;}
+.time-disp{font-family:'DM Mono',monospace;font-size:10px;color:var(--muted);white-space:nowrap;flex-shrink:0;}
+.vol-wrap{display:flex;align-items:center;gap:5px;flex-shrink:0;}
+.vol-slider{width:55px;accent-color:var(--accent);cursor:pointer;}
+
+/* SIDEBAR */
+.sidebar{background:var(--surface);border-left:1px solid var(--border);
+  display:flex;flex-direction:column;overflow-y:auto;overflow-x:hidden;}
+.sidebar::-webkit-scrollbar{width:3px;}
+.sidebar::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px;}
+.s-section{padding:13px 14px;border-bottom:1px solid var(--border);}
+.s-head{font-family:'DM Mono',monospace;font-size:10px;text-transform:uppercase;
+  letter-spacing:.12em;color:var(--muted);margin-bottom:10px;
+  display:flex;align-items:center;gap:8px;}
+.s-head::after{content:'';flex:1;height:1px;background:var(--border);}
+
+/* Cam feed */
+.cam-feed{aspect-ratio:4/3;background:#000;border-radius:8px;overflow:hidden;
+  position:relative;border:1px solid var(--border);}
+.cam-feed img{width:100%;height:100%;object-fit:cover;display:block;}
+.cam-nofeed{position:absolute;inset:0;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;gap:4px;
+  font-family:'DM Mono',monospace;font-size:10px;color:var(--muted);}
+.cam-mesh{position:absolute;inset:0;pointer-events:none;border-radius:8px;
+  background-image:radial-gradient(circle,rgba(0,229,160,.5) 1px,transparent 1px);
+  background-size:12px 12px;opacity:.07;}
+
+/* Emotion card */
+.emotion-card{background:rgba(0,229,160,.05);border:1px solid rgba(0,229,160,.15);
+  border-radius:7px;padding:9px 13px;display:flex;align-items:center;
+  justify-content:space-between;margin-top:9px;transition:all .4s;}
+.emotion-card.s-confused{background:rgba(123,97,255,.08);border-color:rgba(123,97,255,.25);}
+.emotion-card.s-drowsy{background:rgba(255,107,53,.08);border-color:rgba(255,107,53,.25);}
+.emotion-card.s-away{background:rgba(255,77,109,.06);border-color:rgba(255,77,109,.2);}
+.emotion-name{font-size:14px;font-weight:700;}
+.emotion-conf{font-family:'DM Mono',monospace;font-size:11px;color:var(--accent);}
+
+/* ── GAZE DEBUGGER ── */
+.gaze-debugger{position:relative;margin-top:10px;}
+.gaze-canvas-wrap{position:relative;width:100%;height:80px;
+  background:#000;border-radius:8px;border:1px solid var(--border);overflow:hidden;}
+#gazeCanvas{display:block;width:100%;height:100%;}
+.gaze-label{position:absolute;top:5px;left:8px;
+  font-family:'DM Mono',monospace;font-size:9px;color:rgba(255,255,255,.3);letter-spacing:.08em;}
+.gaze-label-r{position:absolute;top:5px;right:8px;
+  font-family:'DM Mono',monospace;font-size:9px;color:rgba(255,255,255,.3);}
+.gaze-ratio-bar{margin-top:7px;position:relative;}
+.grb-track{height:6px;background:rgba(255,255,255,.07);border-radius:3px;position:relative;overflow:visible;}
+.grb-zone{position:absolute;top:0;height:100%;border-radius:3px;
+  background:rgba(0,229,160,.15);border:1px solid rgba(0,229,160,.25);}
+.grb-thumb{position:absolute;top:50%;width:10px;height:10px;border-radius:50%;
+  transform:translate(-50%,-50%);transition:left .1s,background .2s;z-index:2;}
+.grb-labels{display:flex;justify-content:space-between;margin-top:4px;
+  font-family:'DM Mono',monospace;font-size:9px;color:var(--muted);}
+
+/* Debounce bars */
+.debounce-row{display:flex;flex-direction:column;gap:4px;}
+.dbr{display:flex;align-items:center;gap:6px;}
+.dbr-label{font-family:'DM Mono',monospace;font-size:9px;color:var(--muted);width:52px;flex-shrink:0;}
+.dbr-track{flex:1;height:5px;background:rgba(255,255,255,.06);border-radius:3px;overflow:hidden;position:relative;}
+.dbr-fill{height:100%;border-radius:3px;transition:width .12s;}
+.dbr-val{font-family:'DM Mono',monospace;font-size:9px;color:var(--muted);width:28px;text-align:right;flex-shrink:0;}
+
+/* Metrics */
+.metric{margin-bottom:9px;}
+.m-head{font-family:'DM Mono',monospace;font-size:10px;color:var(--muted);
+  display:flex;justify-content:space-between;margin-bottom:4px;}
+.m-bar{height:3px;background:rgba(255,255,255,.07);border-radius:2px;overflow:hidden;}
+.m-fill{height:100%;border-radius:2px;transition:width .5s ease,background .5s;}
+
+/* Attention ring */
+.att-wrap{display:flex;justify-content:center;margin:4px 0 10px;}
+.att-ring{width:76px;height:76px;}
+
+/* Log */
+.log-list{display:flex;flex-direction:column;gap:5px;max-height:120px;overflow-y:auto;}
+.log-list::-webkit-scrollbar{width:3px;}
+.log-item{font-family:'DM Mono',monospace;font-size:10px;padding:5px 9px;border-radius:5px;
+  background:rgba(255,255,255,.02);border-left:2px solid var(--border);display:flex;gap:7px;}
+.log-item.l-confused{border-left-color:var(--purple);}
+.log-item.l-bored{border-left-color:var(--orange);}
+.log-item.l-gaze{border-left-color:var(--blue);}
+.log-item.l-resume{border-left-color:var(--accent);}
+.log-t{color:var(--muted);white-space:nowrap;}
+.log-m{color:#7a8a9a;line-height:1.4;}
+
+/* Simulate buttons */
+.q-btns{display:flex;flex-direction:column;gap:6px;}
+.qb{font-family:'DM Mono',monospace;font-size:10px;text-align:left;
+  padding:8px 11px;border-radius:6px;background:rgba(255,255,255,.02);
+  border:1px solid var(--border);cursor:pointer;color:var(--text);transition:all .2s;
+  display:flex;align-items:center;gap:7px;}
+.qb:hover{background:rgba(255,255,255,.06);}
+.qb-p{color:#c4b8ff;border-color:rgba(123,97,255,.2);}
+.qb-p:hover{background:rgba(123,97,255,.1);}
+.qb-o{color:#ffb39a;border-color:rgba(255,107,53,.2);}
+.qb-o:hover{background:rgba(255,107,53,.1);}
+.qb-b{color:var(--blue);border-color:rgba(79,195,247,.2);}
+.qb-b:hover{background:rgba(79,195,247,.08);}
+.qb-g{color:var(--accent);border-color:rgba(0,229,160,.2);}
+.qb-g:hover{background:rgba(0,229,160,.08);}
+
+/* Stats */
+.stats-grid{display:grid;grid-template-columns:1fr 1fr;gap:7px;}
+.stat-card{border-radius:8px;padding:9px 11px;}
+.stat-val{font-size:20px;font-weight:800;font-family:'DM Mono',monospace;}
+.stat-name{font-family:'DM Mono',monospace;font-size:9px;color:var(--muted);margin-top:2px;}
+
+/* Gaze badge in player */
+.gaze-badge{position:absolute;top:10px;right:10px;
+  background:rgba(79,195,247,.15);border:1px solid rgba(79,195,247,.35);
+  border-radius:6px;padding:4px 10px;
+  font-family:'DM Mono',monospace;font-size:10px;color:var(--blue);
+  opacity:0;transition:opacity .3s;pointer-events:none;}
+.gaze-badge.show{opacity:1;}
+
+/* Toast */
+.toast{position:fixed;top:58px;right:16px;background:var(--surface2);
+  border:1px solid var(--border2);border-radius:8px;padding:10px 16px;
+  font-family:'DM Mono',monospace;font-size:11px;color:var(--text);
+  opacity:0;transform:translateY(-6px);transition:opacity .25s,transform .25s;
+  pointer-events:none;z-index:999;display:flex;align-items:center;gap:8px;max-width:300px;}
+.toast.show{opacity:1;transform:translateY(0);}
+.toast.toast-gaze{border-color:rgba(79,195,247,.35);}
+.toast.toast-ok{border-color:rgba(0,229,160,.3);}
+.toast.toast-warn{border-color:rgba(255,190,11,.3);}
+
+@media(max-width:660px){.main{grid-template-columns:1fr;}.sidebar{display:none;}}
+</style>
+</head>
+<body>
+
+<!-- TOPBAR -->
+<div class="topbar">
+  <div class="brand">Smart<span style="color:var(--accent)">–</span>Lecture
+    <span class="brand-v">v3 · LK Flow</span>
+  </div>
+  <div class="status-pill" id="statusPill">
+    <span class="pulse" id="pulseDot"></span>
+    <span id="statusText">Calibrating…</span>
+  </div>
+  <div class="topbar-sep"></div>
+  <button class="btn-sm" onclick="recalibrate()">⟳ Recalibrate</button>
+  <label class="btn-sm btn-accent" style="cursor:pointer">
+    ＋ Load Lecture
+    <input type="file" accept="video/*" style="display:none" onchange="loadVideo(event)">
+  </label>
+</div>
+
+<!-- MAIN -->
+<div class="main">
+
+  <!-- VIDEO -->
+  <div class="video-area">
+    <div class="video-container">
+      <div class="upload-zone" id="uploadZone" onclick="document.getElementById('fi').click()">
+        <div class="upload-icon">🎬</div>
+        <div class="upload-title">Load Your Lecture Video</div>
+        <div class="upload-sub">Click to browse · MP4, WebM, MOV supported</div>
+        <span class="btn-sm btn-accent" style="margin-top:6px;pointer-events:none">Browse Files</span>
+        <input type="file" id="fi" accept="video/*" onchange="loadVideo(event)">
+      </div>
+      <video id="videoEl" preload="metadata" style="display:none"></video>
+      <div class="gaze-badge" id="gazeBadge">👀 Eyes off screen — <span id="gazeTimer">0.0</span>s</div>
+
+      <!-- Confused -->
+      <div class="ov ov-confused" id="ovC">
+        <div class="ov-icon">🤔</div>
+        <div class="ov-title" style="color:#c4b8ff">Looks like you're stuck!</div>
+        <div class="ov-sub">Video paused. Here's a context-matched summary:</div>
+        <div class="summary-box">
+          <div class="summary-topic" id="summaryTopic"><span>⏳</span> Fetching…</div>
+          <div class="summary-text" id="summaryText"></div>
+          <div class="concept-pills" id="conceptPills"></div>
+        </div>
+        <div class="ov-row">
+          <button class="ov-btn ov-btn-g" onclick="resumeWithRewind(5)">↩ Rewind 5s &amp; Resume</button>
+          <button class="ov-btn ov-btn-gh" onclick="resumeWithRewind(0)">▶ Resume Now</button>
+          <button class="ov-btn ov-btn-gh" onclick="resumeWithRewind(30)">↩↩ Rewind 30s</button>
+        </div>
+      </div>
+
+      <!-- Bored -->
+      <div class="ov ov-bored" id="ovB">
+        <div class="ov-icon">😴</div>
+        <div class="ov-title" style="color:#ffb39a">Hey — stay with us!</div>
+        <div class="ov-sub">Drowsiness detected. Answer this to resume:</div>
+        <div class="quiz-card">
+          <div class="quiz-q" id="quizQ">Loading…</div>
+          <div class="quiz-opts" id="quizOpts"></div>
+        </div>
+      </div>
+
+      <!-- Calibration -->
+      <div class="ov ov-calibrate show" id="ovCal">
+        <div class="ov-icon">👁️</div>
+        <div class="ov-title" style="color:var(--accent)">Calibrating Your Face</div>
+        <div class="ov-sub">Stay neutral &amp; look at the camera for 3 seconds.<br>The AI is learning your EAR, brow position, and gaze centre.</div>
+        <div class="cal-wrap">
+          <div class="cal-label"><span>Capturing baseline</span><span id="calPct">0%</span></div>
+          <div class="cal-track"><div class="cal-fill" id="calFill" style="width:0%"></div></div>
+        </div>
+        <div class="cal-metrics">
+          <div class="cal-metric">
+            <div class="cal-metric-val" id="calEarVal">—</div>
+            <div class="cal-metric-name">Avg EAR</div>
+          </div>
+          <div class="cal-metric">
+            <div class="cal-metric-val" id="calBrowVal">—</div>
+            <div class="cal-metric-name">Brow Y</div>
+          </div>
+          <div class="cal-metric">
+            <div class="cal-metric-val" id="calGazeVal">—</div>
+            <div class="cal-metric-name">Gaze Ctr</div>
+          </div>
+        </div>
+        <div style="font-family:'DM Mono',monospace;font-size:9px;color:rgba(0,229,160,.4);margin-top:4px;">
+          These are YOUR personal thresholds — unique to your face
+        </div>
+      </div>
+    </div>
+
+    <!-- Controls -->
+    <div class="controls" id="ctrlBar" style="display:none">
+      <button class="ctrl-btn" id="playBtn" onclick="togglePlay()">▶</button>
+      <button class="ctrl-btn" onclick="skip(-10)" style="font-size:10px">-10</button>
+      <div class="prog-track" onclick="seekVideo(event)">
+        <div class="prog-fill" id="progFill" style="width:0%"></div>
+        <div class="prog-thumb" id="progThumb" style="left:0%"></div>
+      </div>
+      <button class="ctrl-btn" onclick="skip(10)" style="font-size:10px">+10</button>
+      <span class="time-disp" id="tCur">0:00</span>
+      <span class="time-disp" style="color:var(--border)">/</span>
+      <span class="time-disp" id="tDur">0:00</span>
+      <div class="vol-wrap">
+        <span style="font-size:13px">🔊</span>
+        <input type="range" class="vol-slider" min="0" max="1" step="0.05" value="1"
+               oninput="videoEl.volume=this.value">
+      </div>
+    </div>
+  </div>
+
+  <!-- SIDEBAR -->
+  <div class="sidebar">
+
+    <!-- Cam -->
+    <div class="s-section">
+      <div class="s-head">Webcam · Kalman + LK Flow</div>
+      <div class="cam-feed">
+        <img id="camImg" src="" style="display:none">
+        <div class="cam-nofeed" id="camNofeed"><span style="font-size:28px">📷</span><span>No camera feed</span></div>
+        <div class="cam-mesh"></div>
+      </div>
+      <div class="emotion-card" id="emCard">
+        <span class="emotion-name" id="emName">😊 Focused</span>
+        <span class="emotion-conf" id="emConf">—</span>
+      </div>
+    </div>
+
+    <!-- GAZE DEBUGGER -->
+    <div class="s-section">
+      <div class="s-head">Gaze Debugger</div>
+      <div class="gaze-debugger">
+        <div class="gaze-canvas-wrap">
+          <canvas id="gazeCanvas" width="272" height="80"></canvas>
+          <span class="gaze-label">LEFT ←</span>
+          <span class="gaze-label-r">→ RIGHT</span>
+        </div>
+        <!-- Gaze ratio bar -->
+        <div class="gaze-ratio-bar" style="margin-top:8px;">
+          <div class="grb-track">
+            <!-- Centre zone: ±0.30 from baseline -->
+            <div class="grb-zone" id="grzeZone" style="left:20%;width:60%;"></div>
+            <div class="grb-thumb" id="grzThumb" style="left:50%;background:var(--accent);"></div>
+          </div>
+          <div class="grb-labels">
+            <span>Right (0.0)</span><span id="gazeRatioVal">0.50</span><span>Left (1.0)</span>
+          </div>
+        </div>
+        <div style="font-family:'DM Mono',monospace;font-size:9px;color:var(--muted);margin-top:6px;line-height:1.6;">
+          Green zone = centre ±0.30 threshold<br>
+          🟡 dot inside = looking at screen<br>
+          🔴 dot outside = gaze-away detected
+        </div>
+      </div>
+    </div>
+
+    <!-- Debounce visualiser -->
+    <div class="s-section">
+      <div class="s-head">Debounce Counters</div>
+      <div class="debounce-row">
+        <div class="dbr">
+          <span class="dbr-label" style="color:#ffb39a">Drowsy</span>
+          <div class="dbr-track">
+            <div class="dbr-fill" id="dbDrowsy" style="width:0%;background:var(--orange)"></div>
+          </div>
+          <span class="dbr-val" id="dbDrowsyV">0/20</span>
+        </div>
+        <div class="dbr">
+          <span class="dbr-label" style="color:#c4b8ff">Confused</span>
+          <div class="dbr-track">
+            <div class="dbr-fill" id="dbConfused" style="width:0%;background:var(--purple)"></div>
+          </div>
+          <span class="dbr-val" id="dbConfusedV">0/40</span>
+        </div>
+        <div class="dbr">
+          <span class="dbr-label" style="color:var(--blue)">Gaze</span>
+          <div class="dbr-track">
+            <div class="dbr-fill" id="dbGaze" style="width:0%;background:var(--blue)"></div>
+          </div>
+          <span class="dbr-val" id="dbGazeV">0.0s</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Metrics -->
+    <div class="s-section">
+      <div class="s-head">Live Metrics</div>
+      <div class="att-wrap">
+        <svg class="att-ring" viewBox="0 0 76 76">
+          <circle cx="38" cy="38" r="30" fill="none" stroke="rgba(255,255,255,.06)" stroke-width="5.5"/>
+          <circle id="attRing" cx="38" cy="38" r="30" fill="none" stroke="#00e5a0" stroke-width="5.5"
+                  stroke-dasharray="188.5" stroke-dashoffset="37.7" stroke-linecap="round"
+                  transform="rotate(-90 38 40)" style="transition:stroke-dashoffset .5s,stroke .5s"/>
+          <text x="38" y="42" text-anchor="middle" fill="white" font-family="Syne"
+                font-size="13" font-weight="700" id="attText">95%</text>
+        </svg>
+      </div>
+      <div class="metric">
+        <div class="m-head"><span>EAR (Eye Aspect Ratio)</span><span id="earVal">—</span></div>
+        <div class="m-bar"><div class="m-fill" id="earFill" style="width:60%;background:var(--purple)"></div></div>
+      </div>
+      <div class="metric">
+        <div class="m-head"><span>Brow Distance Ratio</span><span id="browVal">—</span></div>
+        <div class="m-bar"><div class="m-fill" id="browFill" style="width:70%;background:var(--warn)"></div></div>
+      </div>
+      <div class="metric">
+        <div class="m-head"><span>Attention Score</span><span id="attVal">—</span></div>
+        <div class="m-bar"><div class="m-fill" id="attFill" style="width:90%;background:var(--accent)"></div></div>
+      </div>
+    </div>
+
+    <!-- Log -->
+    <div class="s-section">
+      <div class="s-head">Session Log</div>
+      <div class="log-list" id="logList">
+        <div class="log-item"><span class="log-t">—:——</span><span class="log-m">Session started · calibrating…</span></div>
+      </div>
+    </div>
+
+    <!-- Simulate -->
+    <div class="s-section">
+      <div class="s-head">Simulate (Demo)</div>
+      <div class="q-btns">
+        <button class="qb qb-p" onclick="triggerConfused()">🤔 Simulate Confusion</button>
+        <button class="qb qb-o" onclick="triggerBored()">😴 Simulate Drowsiness</button>
+        <button class="qb qb-b" onclick="triggerGaze()">👀 Simulate Gaze Away</button>
+        <button class="qb qb-g" onclick="fullResume()">✓ I'm Alert — Resume</button>
+      </div>
+    </div>
+
+    <!-- Stats -->
+    <div class="s-section">
+      <div class="s-head">Session Stats</div>
+      <div class="stats-grid">
+        <div class="stat-card" style="background:rgba(123,97,255,.08);border:1px solid rgba(123,97,255,.2)">
+          <div class="stat-val" style="color:#c4b8ff" id="stC">0</div>
+          <div class="stat-name">Confusion stops</div>
+        </div>
+        <div class="stat-card" style="background:rgba(255,107,53,.08);border:1px solid rgba(255,107,53,.2)">
+          <div class="stat-val" style="color:#ffb39a" id="stB">0</div>
+          <div class="stat-name">Drowsy alerts</div>
+        </div>
+        <div class="stat-card" style="background:rgba(79,195,247,.07);border:1px solid rgba(79,195,247,.18);grid-column:span 2">
+          <div class="stat-val" style="color:var(--blue)" id="stG">0</div>
+          <div class="stat-name">Gaze-away alerts</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ── Gaze Canvas Visualiser ────────────────────────────────────────────────────
+const gazeCanvas = document.getElementById('gazeCanvas');
+const gCtx       = gazeCanvas.getContext('2d');
+let gazeHistory  = [];   // rolling array of {x, y, color} for trail
+
+function drawGazeDebugger(lmDebug, gazeCentre, offscreen) {
+  const W = gazeCanvas.width, H = gazeCanvas.height;
+  gCtx.clearRect(0, 0, W, H);
+
+  // Background
+  gCtx.fillStyle = '#040608';
+  gCtx.fillRect(0, 0, W, H);
+
+  // Centre zone (±0.30 from calibrated baseline)
+  const zoneL = Math.max(0, (gazeCentre - 0.30) * W);
+  const zoneW = Math.min(W - zoneL, 0.60 * W);
+  gCtx.fillStyle = 'rgba(0,229,160,0.07)';
+  gCtx.fillRect(zoneL, 0, zoneW, H);
+  gCtx.strokeStyle = 'rgba(0,229,160,0.25)';
+  gCtx.lineWidth = 1;
+  gCtx.strokeRect(zoneL, 0, zoneW, H);
+
+  // Centre crosshair
+  const cx = gazeCentre * W;
+  gCtx.strokeStyle = 'rgba(0,229,160,0.3)';
+  gCtx.setLineDash([3,4]);
+  gCtx.beginPath(); gCtx.moveTo(cx,0); gCtx.lineTo(cx,H); gCtx.stroke();
+  gCtx.setLineDash([]);
+
+  // Horizontal scan line (eye level)
+  const ey = H / 2;
+  gCtx.strokeStyle = 'rgba(255,255,255,0.06)';
+  gCtx.beginPath(); gCtx.moveTo(0,ey); gCtx.lineTo(W,ey); gCtx.stroke();
+
+  if (!lmDebug) return;
+
+  // Iris dot position (map gaze_ratio 0→1 to canvas width)
+  const gaze = lmDebug.gaze || 0.5;
+  const dotX = gaze * W;
+  const dotY = ey;
+
+  // Trail
+  gazeHistory.push({x: dotX, y: dotY, offscreen});
+  if (gazeHistory.length > 40) gazeHistory.shift();
+  for (let i = 0; i < gazeHistory.length - 1; i++) {
+    const alpha = (i / gazeHistory.length) * 0.5;
+    gCtx.strokeStyle = gazeHistory[i].offscreen
+      ? `rgba(255,80,80,${alpha})` : `rgba(0,229,160,${alpha})`;
+    gCtx.lineWidth = 1.5;
+    gCtx.beginPath();
+    gCtx.moveTo(gazeHistory[i].x,   gazeHistory[i].y);
+    gCtx.lineTo(gazeHistory[i+1].x, gazeHistory[i+1].y);
+    gCtx.stroke();
+  }
+
+  // Main dot
+  const dotColor = offscreen ? '#ff4d6d' : '#00e5a0';
+  gCtx.beginPath();
+  gCtx.arc(dotX, dotY, 6, 0, Math.PI * 2);
+  gCtx.fillStyle = dotColor + '33';
+  gCtx.fill();
+  gCtx.beginPath();
+  gCtx.arc(dotX, dotY, 4, 0, Math.PI * 2);
+  gCtx.fillStyle = dotColor;
+  gCtx.fill();
+
+  // "AI thinks" label
+  gCtx.fillStyle = 'rgba(255,255,255,0.4)';
+  gCtx.font = '8px DM Mono, monospace';
+  gCtx.fillText(offscreen ? 'LOOKING AWAY' : 'LOOKING AT SCREEN',
+                dotX > W*0.6 ? dotX - 105 : dotX + 8, dotY - 10);
+}
+
+// Update gaze ratio bar
+function updateGazeBar(gaze, gazeCentre, offscreen) {
+  const pct = gaze * 100;
+  const thumb = document.getElementById('grzThumb');
+  thumb.style.left  = pct + '%';
+  thumb.style.background = offscreen ? 'var(--danger)' : 'var(--accent)';
+  document.getElementById('gazeRatioVal').textContent = gaze.toFixed(2);
+
+  // Update zone position based on calibrated centre
+  const zl = Math.max(0, (gazeCentre - 0.30) * 100);
+  const zw = 60;
+  const zone = document.getElementById('grzeZone');
+  zone.style.left  = zl + '%';
+  zone.style.width = Math.min(zw, 100 - zl) + '%';
+}
+
+// ── App state ─────────────────────────────────────────────────────────────────
+const videoEl  = document.getElementById('videoEl');
+const playBtn  = document.getElementById('playBtn');
+const progFill = document.getElementById('progFill');
+const progThumb= document.getElementById('progThumb');
+
+const S = {
+  videoLoaded: false, playing: false, overlayActive: null,
+  calibrated: false, quizAnswered: false,
+  gazeCentre: 0.5,
+};
+
+function fmt(s) { s=Math.floor(s||0); return `${Math.floor(s/60)}:${(s%60).toString().padStart(2,'0')}`; }
+
+let toastTimer;
+function toast(msg, type='ok', dur=2800) {
+  const t = document.getElementById('toast');
+  t.className = `toast toast-${type} show`;
+  t.textContent = msg;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), dur);
+}
+
+function addLog(type, msg) {
+  const el = document.createElement('div');
+  el.className = `log-item l-${type}`;
+  el.innerHTML = `<span class="log-t">${S.videoLoaded?fmt(videoEl.currentTime):'–:––'}</span><span class="log-m">${msg}</span>`;
+  document.getElementById('logList').prepend(el);
+}
+
+// ── Video ─────────────────────────────────────────────────────────────────────
+function loadVideo(e) {
+  const file = e.target.files[0]; if (!file) return;
+  videoEl.src = URL.createObjectURL(file);
+  videoEl.style.display = 'block';
+  document.getElementById('uploadZone').style.display = 'none';
+  document.getElementById('ctrlBar').style.display = 'flex';
+  S.videoLoaded = true;
+  toast(`Loaded: ${file.name}`, 'ok');
+  addLog('resume', `Video loaded: ${file.name}`);
+}
+videoEl.addEventListener('loadedmetadata', () => {
+  document.getElementById('tDur').textContent = fmt(videoEl.duration);
+});
+videoEl.addEventListener('timeupdate', () => {
+  if (!videoEl.duration) return;
+  const p = (videoEl.currentTime / videoEl.duration) * 100;
+  progFill.style.width = p+'%'; progThumb.style.left = p+'%';
+  document.getElementById('tCur').textContent = fmt(videoEl.currentTime);
+});
+function togglePlay() {
+  if (!S.videoLoaded) { toast('Load a video first','warn'); return; }
+  if (S.overlayActive) return;
+  if (videoEl.paused) { videoEl.play(); S.playing=true; playBtn.textContent='⏸'; }
+  else                { videoEl.pause(); S.playing=false; playBtn.textContent='▶'; }
+}
+function skip(s) { if (!S.videoLoaded) return; videoEl.currentTime=Math.max(0,Math.min(videoEl.duration,videoEl.currentTime+s)); }
+function seekVideo(e) { if (!S.videoLoaded) return; const r=e.currentTarget.getBoundingClientRect(); videoEl.currentTime=((e.clientX-r.left)/r.width)*videoEl.duration; }
+
+function resumeWithRewind(sec) {
+  if (S.videoLoaded && sec > 0) videoEl.currentTime = Math.max(0, videoEl.currentTime - sec);
+  fullResume();
+}
+function fullResume() {
+  document.getElementById('ovC').classList.remove('show');
+  document.getElementById('ovB').classList.remove('show');
+  S.overlayActive = null; S.quizAnswered = false; lastPauseReason = null;
+  if (S.videoLoaded) { videoEl.play(); S.playing=true; playBtn.textContent='⏸'; }
+  addLog('resume','Resumed');
+  fetch('/api/resume',{method:'POST'});
+}
+
+// ── Confused overlay ──────────────────────────────────────────────────────────
+async function showConfused() {
+  if (S.overlayActive) return;
+  if (S.videoLoaded) { videoEl.pause(); S.playing=false; playBtn.textContent='▶'; }
+  S.overlayActive = 'confused';
+  const t = S.videoLoaded ? videoEl.currentTime : 0;
+  document.getElementById('summaryTopic').innerHTML = '<span>⏳</span> Fetching summary…';
+  document.getElementById('summaryText').textContent = '';
+  document.getElementById('conceptPills').innerHTML  = '';
+  document.getElementById('ovC').classList.add('show');
+  try {
+    const d = await (await fetch(`/api/get_summary?t=${t}`)).json();
+    document.getElementById('summaryTopic').innerHTML = `<span>📖</span> ${d.topic}`;
+    document.getElementById('summaryText').textContent = d.summary;
+    const pills = document.getElementById('conceptPills');
+    (d.concepts||[]).forEach(c => {
+      const p=document.createElement('span'); p.className='concept-pill'; p.textContent=c; pills.appendChild(p);
+    });
+  } catch(e) {
+    document.getElementById('summaryTopic').innerHTML='<span>📖</span> Summary';
+    document.getElementById('summaryText').textContent='Could not load transcript.';
+  }
+  addLog('confused', `Confusion detected @ ${fmt(t)}`);
+}
+
+// ── Bored overlay ─────────────────────────────────────────────────────────────
+async function showBored() {
+  if (S.overlayActive) return;
+  if (S.videoLoaded) { videoEl.pause(); S.playing=false; playBtn.textContent='▶'; }
+  S.overlayActive = 'bored'; S.quizAnswered = false;
+  document.getElementById('ovB').classList.add('show');
+  await loadQuiz();
+  addLog('bored','Drowsiness detected — quiz triggered');
+}
+async function loadQuiz() {
+  const q = await (await fetch('/api/quiz')).json();
+  document.getElementById('quizQ').textContent = q.question;
+  const opts = document.getElementById('quizOpts'); opts.innerHTML='';
+  q.options.forEach((opt,i) => {
+    const b=document.createElement('button'); b.className='quiz-opt';
+    b.textContent=`${String.fromCharCode(65+i)}. ${opt}`;
+    b.onclick=()=>answerQuiz(i,q.answer,b); opts.appendChild(b);
+  });
+}
+function answerQuiz(chosen,correct,btn) {
+  if (S.quizAnswered) return; S.quizAnswered=true;
+  document.querySelectorAll('.quiz-opt').forEach(b=>b.classList.add('locked'));
+  if (chosen===correct) {
+    btn.classList.add('correct'); toast('✓ Correct! Resuming…','ok');
+    addLog('resume','Quiz correct — resuming'); setTimeout(()=>resumeWithRewind(5),1100);
+  } else {
+    btn.classList.add('wrong');
+    document.querySelectorAll('.quiz-opt')[correct].classList.add('correct');
+    toast('✗ Incorrect — correct answer highlighted','warn');
+    setTimeout(()=>{S.quizAnswered=false;document.querySelectorAll('.quiz-opt').forEach(b=>b.classList.remove('locked','correct','wrong'));},2600);
+  }
+}
+
+function triggerConfused() { showConfused(); }
+function triggerBored()    { showBored(); }
+function triggerGaze() {
+  toast('👀 Eyes on the screen!','warn',3500);
+  addLog('gaze','Simulated gaze-away alert');
+  document.getElementById('gazeBadge').classList.add('show');
+  setTimeout(()=>document.getElementById('gazeBadge').classList.remove('show'),4000);
+  fetch('/api/gaze_ack',{method:'POST'});
+}
+
+// ── Calibration ───────────────────────────────────────────────────────────────
+function recalibrate() {
+  fetch('/api/calibrate',{method:'POST'});
+  S.calibrated=false; gazeHistory=[];
+  document.getElementById('ovCal').classList.add('show');
+  ['calFill','calPct','calEarVal','calBrowVal','calGazeVal'].forEach(id=>{
+    const el=document.getElementById(id);
+    if(el.tagName==='DIV') el.style.width='0%'; else el.textContent=id==='calPct'?'0%':'—';
+  });
+  addLog('resume','Recalibration started');
+}
+
+// ── Webcam frame polling ──────────────────────────────────────────────────────
+let lastFrame=null;
+setInterval(async()=>{
+  try{
+    const d=await(await fetch('/api/frame')).json();
+    if(d.frame&&d.frame!==lastFrame){
+      lastFrame=d.frame;
+      const img=document.getElementById('camImg');
+      img.src='data:image/jpeg;base64,'+d.frame; img.style.display='block';
+      document.getElementById('camNofeed').style.display='none';
+    }
+  }catch(e){}
+},120);
+
+// ── State polling ─────────────────────────────────────────────────────────────
+let lastPauseReason=null, gazeHandled=false, isPolling=false;
+
+setInterval(async()=>{
+  if(isPolling) return; isPolling=true;
+  try{
+    const s=await(await fetch('/api/state')).json();
+    applyState(s);
+
+    // Calibration
+    if(!s.calibrated){
+      const p=s.cal_progress||0;
+      document.getElementById('calFill').style.width=p+'%';
+      document.getElementById('calPct').textContent=p+'%';
+      if(s.cal_live_ear>0){
+        document.getElementById('calEarVal').textContent=s.cal_live_ear.toFixed(3);
+        document.getElementById('calBrowVal').textContent=s.cal_live_brow.toFixed(3);
+        document.getElementById('calGazeVal').textContent=s.cal_live_gaze.toFixed(2);
+      }
+    } else if(!S.calibrated){
+      S.calibrated=true; S.gazeCentre=s.baseline_gaze||0.5;
+      document.getElementById('ovCal').classList.remove('show');
+      toast('✓ Calibration complete — AI is active!','ok');
+      addLog('resume','Calibration complete');
+      updateStatusPill('AI Active · Focused','');
+    }
+
+    // Gaze visualiser
+    const lmd = s.lm_debug||null;
+    const gaze= s.gaze_ratio||0.5;
+    const gc  = s.baseline_gaze||S.gazeCentre||0.5;
+    drawGazeDebugger(lmd, gc, s.gaze_offscreen);
+    updateGazeBar(gaze, gc, s.gaze_offscreen);
+
+    // Debounce bars
+    document.getElementById('dbDrowsy').style.width   = Math.min((s.drowsy_frames||0)/20*100,100)+'%';
+    document.getElementById('dbDrowsyV').textContent  = `${Math.min(s.drowsy_frames||0,20)}/20`;
+    document.getElementById('dbConfused').style.width = Math.min((s.confused_frames||0)/40*100,100)+'%';
+    document.getElementById('dbConfusedV').textContent= `${Math.min(s.confused_frames||0,40)}/40`;
+    const gd = s.gaze_duration||0;
+    document.getElementById('dbGaze').style.width     = Math.min(gd/3*100,100)+'%';
+    document.getElementById('dbGazeV').textContent    = gd.toFixed(1)+'s';
+
+    // Gaze badge in player
+    if(s.gaze_offscreen){
+      document.getElementById('gazeBadge').classList.add('show');
+      document.getElementById('gazeTimer').textContent=(s.gaze_duration||0).toFixed(1);
+    } else {
+      document.getElementById('gazeBadge').classList.remove('show');
+    }
+
+    // Overlay triggers
+    const pr=s.paused_reason;
+    if(pr&&pr!==lastPauseReason&&S.calibrated&&!S.overlayActive){
+      lastPauseReason=pr;
+      if(pr==='confused') showConfused();
+      if(pr==='bored')    showBored();
+    }
+    if(!pr&&!S.overlayActive) lastPauseReason=null;
+
+    // Gaze alert toast
+    if(s.gaze_alert&&!gazeHandled){
+      gazeHandled=true;
+      fetch('/api/gaze_ack',{method:'POST'});
+      toast(`👀 Eyes on the screen! (${(s.gaze_duration||0).toFixed(1)}s away)`,'warn',3500);
+      addLog('gaze',`Gaze off-screen for ${(s.gaze_duration||0).toFixed(1)}s`);
+      setTimeout(()=>{ gazeHandled=false; },4000);
+    }
+  }catch(e){}
+  finally{ isPolling=false; }
+},200);
+
+// ── Apply state to UI ─────────────────────────────────────────────────────────
+function applyState(s){
+  const em=s.emotion||'focused';
+  const emojis={focused:'😊',confused:'🤔',drowsy:'😴',neutral:'😐',away:'👀'};
+  const card=document.getElementById('emCard');
+  document.getElementById('emName').textContent=`${emojis[em]||'😐'} ${em[0].toUpperCase()+em.slice(1)}`;
+  document.getElementById('emConf').textContent=s.confidence?s.confidence+'%':'—';
+  card.className='emotion-card'+(em==='confused'?' s-confused':em==='drowsy'?' s-drowsy':em==='away'?' s-away':'');
+
+  const ear=s.ear||0.30, brow=s.brow_ratio||1.0, att=s.attention||0;
+  document.getElementById('earFill').style.width=Math.min(ear/0.5*100,100)+'%';
+  document.getElementById('earVal').textContent=ear.toFixed(3);
+  document.getElementById('browFill').style.width=Math.min(brow*70,100)+'%';
+  document.getElementById('browVal').textContent=brow.toFixed(2)+'x';
+  document.getElementById('attFill').style.width=att+'%';
+  document.getElementById('attFill').style.background=att>70?'var(--accent)':att>40?'var(--warn)':'var(--danger)';
+  document.getElementById('attVal').textContent=att+'%';
+
+  const da=188.5-(att/100)*188.5;
+  document.getElementById('attRing').style.strokeDashoffset=da;
+  document.getElementById('attRing').style.stroke=att>70?'#00e5a0':att>40?'#ffbe0b':'#ff4d6d';
+  document.getElementById('attText').textContent=att+'%';
+
+  document.getElementById('stC').textContent=s.stat_confused||0;
+  document.getElementById('stB').textContent=s.stat_bored||0;
+  document.getElementById('stG').textContent=s.stat_gaze||0;
+
+  if(S.calibrated){
+    const pmap={focused:'AI Active · Focused',confused:'AI Active · Confused!',
+                drowsy:'AI Active · Drowsy!',away:'AI Active · Away'};
+    const cls=em==='confused'?'warn':em==='drowsy'?'alert':em==='away'?'warn':'';
+    updateStatusPill(pmap[em]||'AI Active',cls);
+  }
+}
+
+function updateStatusPill(text,cls){
+  const p=document.getElementById('statusPill');
+  p.className='status-pill'+(cls?' '+cls:'');
+  document.getElementById('statusText').textContent=text;
+}
+</script>
+</body>
+</html>

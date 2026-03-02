@@ -1,0 +1,57 @@
+{
+  "0": {
+    "topic": "Introduction to Linear Algebra",
+    "transcript": "Welcome to Linear Algebra. Today we are going to cover the fundamental building blocks: vectors and vector spaces. A vector is simply an ordered list of numbers. We denote it with a bold letter or an arrow on top.",
+    "key_concepts": ["vectors", "ordered list", "notation"]
+  },
+  "60": {
+    "topic": "Vector Addition and Scalar Multiplication",
+    "transcript": "Vector addition is done component-wise. If we have vector u equals (1, 2) and vector v equals (3, 4), then u plus v equals (4, 6). Scalar multiplication stretches or shrinks the vector. Two times u would give us (2, 4).",
+    "key_concepts": ["component-wise addition", "scalar multiplication", "geometric interpretation"]
+  },
+  "120": {
+    "topic": "Dot Product",
+    "transcript": "The dot product of two vectors u and v is defined as the sum of the products of their corresponding components. For vectors in R-n, u dot v equals u1 v1 plus u2 v2 and so on up to un vn. The result is always a scalar, not a vector.",
+    "key_concepts": ["dot product", "scalar result", "component multiplication", "sum"]
+  },
+  "180": {
+    "topic": "Orthogonality",
+    "transcript": "Two vectors are called orthogonal if their dot product equals zero. Geometrically, this means the angle between them is exactly 90 degrees. For example, the vector (1, 0) and the vector (0, 1) are orthogonal because 1 times 0 plus 0 times 1 equals zero.",
+    "key_concepts": ["orthogonal", "dot product zero", "90 degrees", "perpendicular"]
+  },
+  "240": {
+    "topic": "Matrix Multiplication",
+    "transcript": "Matrix multiplication is not done element-wise. To multiply matrix A times matrix B, the number of columns in A must equal the number of rows in B. The entry in row i and column j of the result is the dot product of row i of A with column j of B.",
+    "key_concepts": ["matrix multiplication", "row times column", "dimensions must match"]
+  },
+  "300": {
+    "topic": "Eigenvalues and Eigenvectors",
+    "transcript": "An eigenvector of a matrix A is a non-zero vector v such that A times v equals lambda times v, where lambda is a scalar called the eigenvalue. In other words, multiplying A by v only scales v. To find eigenvalues, we solve det(A minus lambda I) equals zero.",
+    "key_concepts": ["eigenvector", "eigenvalue", "direction preserved", "characteristic equation"]
+  },
+  "360": {
+    "topic": "Determinants",
+    "transcript": "The determinant of a 2 by 2 matrix with entries a, b, c, d is a times d minus b times c. Geometrically, the absolute value of the determinant represents the scaling factor of areas under the linear transformation. A determinant of zero means the matrix is singular.",
+    "key_concepts": ["determinant formula", "area scaling", "singular matrix"]
+  },
+  "420": {
+    "topic": "Linear Independence",
+    "transcript": "A set of vectors is linearly independent if no vector in the set can be written as a linear combination of the others. The only solution to c1 v1 plus c2 v2 equals zero must have all coefficients equal to zero. Linear independence is crucial for forming a basis.",
+    "key_concepts": ["linear combination", "coefficients", "trivial solution", "basis"]
+  },
+  "480": {
+    "topic": "Basis and Dimension",
+    "transcript": "A basis for a vector space is a set of vectors that is both linearly independent and spans the entire space. The number of vectors in any basis is always the same, called the dimension. The standard basis for R-n consists of the unit vectors e1 through en.",
+    "key_concepts": ["basis", "spans", "linearly independent", "dimension"]
+  },
+  "540": {
+    "topic": "Null Space and Column Space",
+    "transcript": "The null space of matrix A is the set of all vectors x such that A times x equals zero. The rank-nullity theorem states that the dimension of the null space plus the rank of A equals the number of columns of A.",
+    "key_concepts": ["null space", "column space", "rank-nullity theorem"]
+  },
+  "600": {
+    "topic": "Projections",
+    "transcript": "The projection of vector b onto vector a is the closest point in the direction of a to b. The formula is a times (a-transpose b) divided by (a-transpose a). Projections are used in least squares when a system has no exact solution.",
+    "key_concepts": ["projection formula", "closest point", "least squares"]
+  }
+}
